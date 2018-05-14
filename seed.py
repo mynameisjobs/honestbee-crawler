@@ -16,7 +16,7 @@ cur.execute("""
 
 CREATE TABLE products 
 (
-   id                    bigint,
+   id                    text,
    alcohol               boolean,
    amountperunit         float8,
    barcode               float8,
@@ -45,12 +45,10 @@ CREATE TABLE products
    tags                  text,
    title                 text,
    brand_id              int,
+   product_id            int,
    unittype              text
 );
 
-ALTER TABLE products
-   ADD CONSTRAINT pk_products
-   PRIMARY KEY (id);
 
 CREATE INDEX ix_honestbee_crawler_id ON public.products USING btree (id);
 
@@ -59,3 +57,6 @@ COMMIT;
 
 
         """)
+# ALTER TABLE products
+#    ADD CONSTRAINT pk_products
+#    PRIMARY KEY (id);

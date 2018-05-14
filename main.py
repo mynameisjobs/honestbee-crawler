@@ -6,6 +6,7 @@ import json
 from celery import Celery, group, chain
 import requests
 import models
+import peewee
 
 print(os.getenv('RBMQ_HOST'))
 app = Celery('main', broker='pyamqp://guest@%s//'%(os.getenv('RBMQ_HOST')))
@@ -43,6 +44,8 @@ def get_products(store_id, page=1):
     if data.get('products'):
         products = [{k.lower():v for k,v in row.items()} for row in data.get('products')]
         for row in products:
+            row['product_id'] = row['id']
+            row['id'] = "%s_%s"%(row['id'],store_id)
             row['brand_id'] = int(store_id)
         to_postgres.delay(products)
     #print(json.dumps(resp.json(), ensure_ascii=False))
@@ -58,13 +61,18 @@ def dispatch_get_products(storeId_and_totalPages):
     store_id, total_pages = storeId_and_totalPages
     if total_pages == 1:
         return
-    for x in range(2, total_pages + 1):
+    for x in range(2, total_pages + 2):
         get_products.delay(store_id, x)
 
 @app.task
 def to_postgres(data):
     #print(data)
-    models.Product.insert_many(data).execute()
+    try:
+        with models.database.atomic():
+            models.Product.insert_many(data).execute()
+    except peewee.IntegrityError:
+        return "duplicate"
+
     # except Exception as e:
     #     print(e)
     #     print(data)

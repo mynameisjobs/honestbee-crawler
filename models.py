@@ -21,7 +21,7 @@ class Product(BaseModel):
     customernotesenabled = BooleanField(null=True)
     description = TextField(null=True)
     descriptionhtml = TextField(null=True)
-    id = BigIntegerField(index=True, null=True)
+    id = TextField(index=True, null=True)
     imageurl = TextField(null=True)
     imageurlbasename = TextField(null=True)
     maxquantity = FloatField(null=True)
@@ -42,6 +42,7 @@ class Product(BaseModel):
     title = TextField(null=True)
     unittype = TextField(null=True)
     brand_id = BigIntegerField(null=True)
+    product_id = BigIntegerField(null=True)
 
     class Meta:
         table_name = 'products'
