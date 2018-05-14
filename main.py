@@ -1,11 +1,17 @@
 # coding: utf-8
+import os
 import re
 import json
 
 from celery import Celery, group, chain
 import requests
+import models
 
-app = Celery('main', broker='pyamqp://guest@localhost//')
+print(os.getenv('RBMQ_HOST'))
+app = Celery('main', broker='pyamqp://guest@%s//'%(os.getenv('RBMQ_HOST')))
+app.conf.task_routes = {
+        'main.to_postgres': {'queue': 'to_postgres'}
+        }
 HOST = 'https://www.honestbee.tw'
 
 def get_stores():
@@ -33,8 +39,14 @@ def get_products(store_id, page=1):
     }''')
 
     resp = requests.get(url, headers=headers)
+    data = resp.json()
+    if data.get('products'):
+        products = [{k.lower():v for k,v in row.items()} for row in data.get('products')]
+        for row in products:
+            row['brand_id'] = int(store_id)
+        to_postgres.delay(products)
     #print(json.dumps(resp.json(), ensure_ascii=False))
-    return (store_id, resp.json())
+    return (store_id, data)
 
 @app.task
 def get_total_pages(storeId_and_productData):
@@ -48,6 +60,15 @@ def dispatch_get_products(storeId_and_totalPages):
         return
     for x in range(2, total_pages + 1):
         get_products.delay(store_id, x)
+
+@app.task
+def to_postgres(data):
+    #print(data)
+    models.Product.insert_many(data).execute()
+    # except Exception as e:
+    #     print(e)
+    #     print(data)
+
 
 if __name__ == '__main__':
     for store_id in get_stores():
