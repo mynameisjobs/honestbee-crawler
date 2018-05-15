@@ -1,0 +1,38 @@
+{
+    "settings" : {
+        "index" : {
+            "number_of_shards" : 3,
+                "number_of_replicas" : 1
+        }
+    },
+        "mappings" : {
+            "main": {
+                "properties": {
+                    "title": {
+                        "type": "text",
+                        "analyzer": "ik_max_word",
+                        "search_analyzer": "ik_max_word"
+                    },
+                    "brand_id": {
+                        "type": "integer"
+                    },
+                    "product_id": {
+                        "type": "integer"
+                    },
+                    "size": {
+                        "type": "text"
+                    },
+                    "imageurl": {
+                        "type": "text"
+                    },
+                    "currency": {
+                        "type": "text"
+                    },
+                    "price": {
+                        "type": "float"
+                    }
+                }
+
+            }
+        }
+}

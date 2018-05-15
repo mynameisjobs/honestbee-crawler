@@ -1,6 +1,7 @@
 import os
 
 from peewee import *
+from playhouse.postgres_ext import DateTimeTZField
 
 database = PostgresqlDatabase(os.getenv('PG_DATABASE'), **{'host': os.getenv('PG_HOST'), 'user': os.getenv('PG_USER'), 'password': os.getenv('PG_PASSWORD')})
 
@@ -43,6 +44,7 @@ class Product(BaseModel):
     unittype = TextField(null=True)
     brand_id = BigIntegerField(null=True)
     product_id = BigIntegerField(null=True)
+    dt = DateTimeTZField(null=True)
 
     class Meta:
         table_name = 'products'

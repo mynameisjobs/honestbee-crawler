@@ -2,18 +2,20 @@
 import os
 import re
 import json
+import datetime
 
 from celery import Celery, group, chain
 import requests
 import models
 import peewee
 
-print(os.getenv('RBMQ_HOST'))
 app = Celery('main', broker='pyamqp://guest@%s//'%(os.getenv('RBMQ_HOST')))
 app.conf.task_routes = {
-        'main.to_postgres': {'queue': 'to_postgres'}
+        'main.to_postgres': {'queue': 'to_postgres'},
+        'main.to_es':       {'queue': 'to_es'}
         }
 HOST = 'https://www.honestbee.tw'
+ES_HOST = os.getenv('ES_HOST')
 
 def get_stores():
     resp = requests.get(HOST + '/zh-tw/groceries/stores')
@@ -23,7 +25,8 @@ def get_stores():
     return brands
 
 @app.task
-def get_products(store_id, page=1):
+def get_products(storeId_and_dt, page=1):
+    store_id, dt = storeId_and_dt
     url = "https://www.honestbee.tw/api/api/stores/{}?sort=price:desc&page={}".format(store_id, page) #&fields[]=departments"
     headers = json.loads(r'''{
         "Accept": "application/vnd.honestbee+json;version=2",
@@ -47,22 +50,40 @@ def get_products(store_id, page=1):
             row['product_id'] = row['id']
             row['id'] = "%s_%s"%(row['id'],store_id)
             row['brand_id'] = int(store_id)
+            row['dt'] = dt
         to_postgres.delay(products)
+        [to_es.delay(x) for x in products]
     #print(json.dumps(resp.json(), ensure_ascii=False))
-    return (store_id, data)
+    return (storeId_and_dt, data)
 
 @app.task
-def get_total_pages(storeId_and_productData):
-    store_id, product_data = storeId_and_productData
-    return (store_id, product_data['meta']['total_pages'])
+def get_total_pages(storeId_and_dt_and_productData):
+    storeId_and_dt, product_data = storeId_and_dt_and_productData
+    return (storeId_and_dt, product_data['meta']['total_pages'])
 
 @app.task
-def dispatch_get_products(storeId_and_totalPages):
-    store_id, total_pages = storeId_and_totalPages
+def dispatch_get_products(storeId_and_dt_and_totalPages):
+    storeId_and_dt, total_pages = storeId_and_dt_and_totalPages
     if total_pages == 1:
         return
     for x in range(2, total_pages + 2):
-        get_products.delay(store_id, x)
+        get_products.delay(storeId_and_dt, x)
+
+@app.task
+def to_es(data):
+    d = {
+        "title": data['title'],
+        "price": data['price'],
+        "brand_id": data['brand_id'],
+        "product_id": data['product_id'],
+        "imageurl": data['imageurl'],
+        "size": data['size'],
+        "updated_at": data['dt'],
+        "currency": data['currency']
+    }
+    resp = requests.put('http://{}:9200/honestbee/main/{}'.format(ES_HOST, data['product_id']), headers={'content-type': 'application/json'},
+            json=d)
+    return resp.json()
 
 @app.task
 def to_postgres(data):
@@ -79,8 +100,9 @@ def to_postgres(data):
 
 
 if __name__ == '__main__':
+    dt = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
     for store_id in get_stores():
-        chain(get_products.s(store_id) |
+        chain(get_products.s((store_id,dt)) |
                 get_total_pages.s() |
                 dispatch_get_products.s())()
 
