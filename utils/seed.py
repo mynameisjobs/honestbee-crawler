@@ -46,6 +46,7 @@ CREATE TABLE products
    title                 text,
    brand_id              int,
    product_id            int,
+   url                   text,
    dt                    timestamptz,
    unittype              text
 );

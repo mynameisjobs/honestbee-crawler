@@ -28,6 +28,12 @@
                     "currency": {
                         "type": "text"
                     },
+                    "url": {
+                        "type": "text"
+                    },
+                    "updated_at": {
+                        "type": "date"
+                    },
                     "price": {
                         "type": "float"
                     }

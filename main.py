@@ -8,12 +8,14 @@ from celery import Celery, group, chain
 import requests
 import models
 import peewee
+from playhouse.shortcuts import model_to_dict
 
 app = Celery('main', broker='pyamqp://guest@%s//'%(os.getenv('RBMQ_HOST')))
 app.conf.task_routes = {
         'main.to_postgres': {'queue': 'to_postgres'},
         'main.to_es':       {'queue': 'to_es'}
         }
+brands_dict = {row.id: model_to_dict(row) for row in models.Brands}
 HOST = 'https://www.honestbee.tw'
 ES_HOST = os.getenv('ES_HOST')
 
@@ -47,6 +49,10 @@ def get_products(storeId_and_dt, page=1):
     if data.get('products'):
         products = [{k.lower():v for k,v in row.items()} for row in data.get('products')]
         for row in products:
+            if brands_dict.get(int(store_id),{}).get('slug'):
+                row['url'] = "https://www.honestbee.tw/zh-TW/groceries/stores/{store_slug}/products/{product_id}".format(
+                        store_slug=brands_dict.get(int(store_id)).get('slug'),
+                        product_id=row['id'])
             row['product_id'] = row['id']
             row['id'] = "%s_%s"%(row['id'],store_id)
             row['brand_id'] = int(store_id)
@@ -78,6 +84,7 @@ def to_es(data):
         "product_id": data['product_id'],
         "imageurl": data['imageurl'],
         "size": data['size'],
+        "url": data.get('url'),
         "updated_at": data['dt'],
         "currency": data['currency']
     }
