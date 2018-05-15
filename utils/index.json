@@ -28,6 +28,9 @@
                     "currency": {
                         "type": "text"
                     },
+                    "status": {
+                        "type": "keyword"
+                    },
                     "url": {
                         "type": "text"
                     },

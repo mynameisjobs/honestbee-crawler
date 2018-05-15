@@ -86,6 +86,7 @@ def to_es(data):
         "size": data['size'],
         "url": data.get('url'),
         "updated_at": data['dt'],
+        "status": data['status'],
         "currency": data['currency']
     }
     resp = requests.put('http://{}:9200/honestbee/main/{}'.format(ES_HOST, data['product_id']), headers={'content-type': 'application/json'},
