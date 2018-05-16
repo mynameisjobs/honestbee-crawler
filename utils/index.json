@@ -13,10 +13,16 @@
                         "analyzer": "ik_max_word",
                         "search_analyzer": "ik_max_word"
                     },
-                    "brand_id": {
+                    "store_id": {
                         "type": "integer"
                     },
                     "product_id": {
+                        "type": "integer"
+                    },
+                    "category_id": {
+                        "type": "integer"
+                    },
+                    "department_id": {
                         "type": "integer"
                     },
                     "size": {

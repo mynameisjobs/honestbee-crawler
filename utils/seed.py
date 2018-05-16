@@ -44,8 +44,10 @@ CREATE TABLE products
    status                text,
    tags                  text,
    title                 text,
-   brand_id              int,
-   product_id            int,
+   store_id              bigint,
+   product_id            bigint,
+   category_id           bigint,
+   department_id         bigint,
    url                   text,
    dt                    timestamptz,
    unittype              text

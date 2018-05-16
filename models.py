@@ -43,8 +43,10 @@ class Product(BaseModel):
     tags = TextField(null=True)
     title = TextField(null=True)
     unittype = TextField(null=True)
-    brand_id = BigIntegerField(null=True)
+    store_id = BigIntegerField(null=True)
     product_id = BigIntegerField(null=True)
+    category_id = BigIntegerField(null=True)
+    department_id = BigIntegerField(null=True)
     dt = DateTimeTZField(null=True)
 
     class Meta:
@@ -94,3 +96,27 @@ class Brands(BaseModel):
         table_name = 'brands'
         primary_key = False
 
+class Categories(BaseModel):
+    department_id = BigIntegerField(column_name='department_id', null=True)
+    id = BigIntegerField(null=True)
+    imageurl = TextField(null=True)
+    productscount = BigIntegerField(null=True)
+    slug = TextField(null=True)
+    title = TextField(null=True)
+
+    class Meta:
+        table_name = 'categories'
+        primary_key = False
+
+class Departments(BaseModel):
+    childstores = TextField(null=True)
+    description = TextField(null=True)
+    id = BigIntegerField(null=True)
+    imageurl = TextField(null=True)
+    name = TextField(null=True)
+    productscount = BigIntegerField(null=True)
+    store_id = BigIntegerField(column_name='store_id', null=True)
+
+    class Meta:
+        table_name = 'departments'
+        primary_key = False
