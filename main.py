@@ -36,13 +36,17 @@ def get_stores():
     window_data = json.loads(re.findall('window.__data=(.+?); window.__i18n', resp.text, re.DOTALL)[0])
     brands = window_data['groceries']['brands']['byId']
     brands = [{k.lower():v for k,v in row.items()} for kk, row in brands.items()]
-    stores = [brand['storeid'] for brand in brands]
+    stores = [brand for brand in brands]
     process_brands(brands)
     #print("got brands")
     return stores
 
 @app.task
 def get_products(payload):
+    department_name = payload['department_name']
+    category_name = payload['category_name']
+    store_name = payload['store_name']
+    store_slug = payload['store_slug']
     department_id = payload['department_id']
     category_id = payload['category_id']
     store_id = payload['store_id']
@@ -71,6 +75,12 @@ def get_products(payload):
     to_pg_data = []
     resp = requests.get(url, headers=headers)
     for product in resp.json().get('products'):
+        product['store_name'] = store_name
+        product['category_name'] = category_name
+        product['department_name'] = department_name
+        product['url'] = "https://www.honestbee.tw/zh-TW/groceries/stores/{store_slug}/products/{product_id}".format(
+                        store_slug=store_slug,
+                        product_id=product['id'])
         product['store_id'] = store_id
         product['category_id'] = category_id
         product['department_id'] = department_id
@@ -96,6 +106,7 @@ def dispatch_get_products(payload):
     'process_category': {id: category{}}
     }
     """
+    store = payload['store']
     for category_id, category in payload['process_category'].items():
         try:
             department = payload['process_department'][str(category['department_id'])]
@@ -104,8 +115,12 @@ def dispatch_get_products(payload):
         payload2 = {}
         payload2['dt'] = payload['dt']
         payload2['department_id'] = department['id']
+        payload2['department_name'] = department['name']
         payload2['store_id']     = department['store_id']
+        payload2['store_name']   = store['name']
+        payload2['store_slug']   = store['slug']
         payload2['category_id']  = category_id
+        payload2['category_name'] = category['title']
         get_products.delay(payload2)
 
 @app.task
@@ -117,6 +132,7 @@ def to_es(data_list):
             "price": data['price'],
             "store_id": data['store_id'],
             "product_id": data['product_id'],
+            "store_name": data['store_name'],
             "imageurl": data['imageurl'],
             "size": data['size'],
             "url": data.get('url'),
@@ -266,12 +282,14 @@ if __name__ == '__main__':
     models.Categories.drop_table()
     models.Categories.create_table()
     dt = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
-    for store_id in get_stores():
+    for store in get_stores():
         payload = {}
+        store_id = store['storeid']
         # chain(get_products.s((store_id,dt)) |
         #         get_total_pages.s() |
         #         dispatch_get_products.s())()
         payload['store_id'] = int(store_id)
+        payload['store'] = store
         payload['dt'] = dt
         chain(get_directory.s(payload) |
                 process_department.s() |

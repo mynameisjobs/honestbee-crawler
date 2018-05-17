@@ -48,6 +48,9 @@ CREATE TABLE products
    product_id            bigint,
    category_id           bigint,
    department_id         bigint,
+   store_name            text,
+   category_name         text,
+   department_name       text,
    url                   text,
    dt                    timestamptz,
    unittype              text

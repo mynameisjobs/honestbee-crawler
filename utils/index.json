@@ -13,6 +13,15 @@
                         "analyzer": "ik_max_word",
                         "search_analyzer": "ik_max_word"
                     },
+                    "store_name": {
+                        "type": "text"
+                    },
+                    "category_name": {
+                        "type": "text"
+                    },
+                    "department_name": {
+                        "type": "text"
+                    },
                     "store_id": {
                         "type": "integer"
                     },

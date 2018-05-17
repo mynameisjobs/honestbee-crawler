@@ -47,6 +47,9 @@ class Product(BaseModel):
     product_id = BigIntegerField(null=True)
     category_id = BigIntegerField(null=True)
     department_id = BigIntegerField(null=True)
+    store_name = TextField(null=True)
+    category_name = TextField(null=True)
+    department_name = TextField(null=True)
     dt = DateTimeTZField(null=True)
 
     class Meta:
