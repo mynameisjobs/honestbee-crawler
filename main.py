@@ -20,7 +20,7 @@ HOST = 'https://www.honestbee.tw'
 ES_HOST = os.getenv('ES_HOST')
 
 
-@app.task
+#@app.task
 def process_brands(brands):
     models.Brands.drop_table()
     models.Brands.create_table()
@@ -29,6 +29,9 @@ def process_brands(brands):
             .execute())
 
 def get_stores():
+    """
+    return [storeid<str>]
+    """
     resp = requests.get(HOST + '/zh-tw/groceries/stores')
     window_data = json.loads(re.findall('window.__data=(.+?); window.__i18n', resp.text, re.DOTALL)[0])
     brands = window_data['groceries']['brands']['byId']
@@ -38,110 +41,115 @@ def get_stores():
     #print("got brands")
     return stores
 
-def dump_page(url):
-    headers = json.loads(r'''{
-        "Accept": "application/vnd.honestbee+json;version=2",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "zh-TW",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "Cookie": "connect.sid=s%3AMhmQ1nQHYL_69wnrjuJBgExp5Zv7zVqs.g6m01NNVv%2BOMh1K6KiTVPUOthSZQHjUxe%2F1Qvdt1hgU; ajs_user_id=null; ajs_group_id=null; ajs_anonymous_id=%22d9d3c3ec-2472-4fcf-9abb-df5fc9984c4b%22; _ga=GA1.2.1181326923.1525430384; appier_utmz=%7B%22csr%22%3A%22google%22%2C%22timestamp%22%3A1525430384%7D; _atrk_siteuid=Iv-rYwXkRnTLdhXM; ab.storage.deviceId.b0a7b43e-b927-41a2-8f56-8183f42abb09=%7B%22g%22%3A%22e3a19647-699c-e595-ba2f-d8a0654a2e14%22%2C%22c%22%3A1525430385018%2C%22l%22%3A1525430385018%7D; __ssid=35a0fbf6-9d19-4289-996c-0bfba46c026b; _omappvp=wWe6NRCEOaQW76xtU8lYAhNyQ83c86xtz3AufqEOoPbFWTLrGCAOMjcIyAIXudXtVhFwObcOGTbhrRbnSiBFk9Z1mxdan8uN; cto_lwid=54d4a608-82cb-4f31-9fd4-d52255987263; __zlcmid=mFhJbYVFxacoH1; appier_uid_2=yRlZz2OixSNUoKpocV5O6w; __zlcprivacy=1; _gid=GA1.2.925910841.1525969555; _atrk_ssid=l-QvgtIxWHyb3I7hxqS7jk; ab.storage.sessionId.b0a7b43e-b927-41a2-8f56-8183f42abb09=%7B%22g%22%3A%2205a932f9-e58c-abc1-8a26-7b5fcef60ffa%22%2C%22e%22%3A1526012004955%2C%22c%22%3A1526008764512%2C%22l%22%3A1526010204955%7D; appier_tp=; _atrk_sessidx=4; appier_pv_counternL1t5crDJLr4VSH=2; _uetsid=_uetf941f4d3",
-        "Host": "www.honestbee.tw",
-        "Pragma": "no-cache",
-        "Referer": "https://www.honestbee.tw/zh-TW/groceries/stores/fresh-by-honestbee-tw?sort=price_desc",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36",
-        "x-honestbee-cache": "enable"
-    }''')
-
-    resp = requests.get(url, headers=headers)
-    return resp
-
-def prase_products(data, store_id, department_id, category_id, dt):
-    if data.get('products'):
-        products = [{k.lower():v for k,v in row.items()} for row in data.get('products')]
-        for row in products:
-            # if brands_dict.get(int(brand_id),{}).get('slug'):
-            #     row['url'] = "https://www.honestbee.tw/zh-TW/groceries/stores/{store_slug}/products/{product_id}".format(
-            #             store_slug=brands_dict.get(int(brand_id)).get('slug'),
-            #             product_id=row['id'])
-            row['product_id'] = int(row['id'])
-            row['id'] = row['id']
-            row['store_id'] = int(store_id)
-            row['category_id'] = category_id
-            row['department_id'] = department_id
-            row['dt'] = dt
-        to_postgres.delay(products)
-        [to_es.delay(x) for x in products]
-
 @app.task
 def get_products(payload):
     department_id = payload['department_id']
     category_id = payload['category_id']
     store_id = payload['store_id']
     page = payload.get('page', 1)
-    # url = "https://www.honestbee.tw/api/api/stores/{}?sort=price:desc&page={}".format(store_id, page) #&fields[]=departments"
-    url = "https://www.honestbee.tw/api/api/departments/{department_id}?\
-            categoryIds%5B%5D={category_id}&\
-            sort=ranking&\
-            page={page}&\
-            storeId={store_id}&\
-            fields%5B%5D=categories".format(department_id=department_id,
-                                            category_id=category_id,
-                                            page=page,
-                                            store_id=store_id)
-    data = dump_page(url).json()
-    prase_products(data, store_id, department_id, category_id, payload['dt'])
-    #print(json.dumps(resp.json(), ensure_ascii=False))
-    payload['data'] = data
-    return payload
 
-@app.task
-def get_total_pages(payload):
-    payload['total_pages'] = payload['data']['meta']['tatal_pages']
-    return payload
+    url = """https://www.honestbee.tw/api/api/departments/{department_id}?categoryIds%5B%5D={category_id}&sort=ranking&page={page}&storeId={store_id}&fields%5B%5D=categories""".format(
+            department_id=department_id,
+            category_id=category_id,
+            store_id=store_id,
+            page=page)
 
-@app.task
-def dispatch_rest_of_get_products(payload):
-    total_pages = payload['total_pages']
-    if total_pages == 1:
-        return
-    for x in range(2, total_pages + 2):
-        payload['page'] = x
-        get_products.delay(payload)
+    headers = json.loads(r'''{
+    "Accept": "application/vnd.honestbee+json;version=2",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "zh-TW",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "Cookie": "connect.sid=s%3A608o0mr0PaNmG0og-XBxSVwcYdlnbeht.Y5Ec5ICbb7NXCLmnODO1ASJc7JSNYQHg%2F3XXtZK1DY8; ajs_user_id=null; ajs_group_id=null; ajs_anonymous_id=%227c983032-927c-4214-8c4e-d306827ac44a%22; _ga=GA1.2.937310059.1526023442; ab.storage.deviceId.b0a7b43e-b927-41a2-8f56-8183f42abb09=%7B%22g%22%3A%222b83d6d3-2db7-27f2-4892-409d5139feae%22%2C%22c%22%3A1526023442611%2C%22l%22%3A1526023442611%7D; __ssid=34fc6072-d449-4851-aca0-a951b9e8bd7a; appier_utmz=%7B%7D; _atrk_siteuid=_nwI401QSL6fIj_O; _omappvp=E3IXL25nSz6PJX8mV07BQqTa2hXrMssF5zsp4CTEUnNFxeiN4HTnd3dVv1lsTFPoUS6JQ1xx3Zj5cmYOnf4Es3gzogQvSxI9; __zlcmid=mMhKeI2JX9LkJG; appier_uid_2=QA2V4hxPSE2lnYR44eXsv7; _gid=GA1.2.935251516.1526294893; cto_lwid=e5953c02-8ed8-4168-a931-f54031873972; _honestbees_session=V3JOaXFDWThDdWZtWi9jOVhZM3VpSER6RkFDdlBQUGREL1RadHJVaGlKZXNJY3MyTUZVTE8wUW1rMS9xaTAybllkK1ZMYzA4eThEeE12MFJxaWx3N2RWbzRUYldFUitvMDRRdHVmQTY4aTkzL3pVaGxMUHBmdlpRZkJHQW1vOWhaeTNWQ3NjMXZuRGZTeDRaWnpMcFFnPT0tLUJrdEg3aWFHNDNtcjFsdGZtM0ZEeHc9PQ%3D%3D--8894b18b1007ee1ecaebb802cfb37d2762c1e5b5; appier_tp=; _atrk_ssid=MQ4RcCMcUDfxz-8nJ_4zyw; appier_pv_counternL1t5crDJLr4VSH=0; _atrk_sessidx=2; _gat=1; _uetsid=_uetc15ffeeb; ab.storage.sessionId.b0a7b43e-b927-41a2-8f56-8183f42abb09=%7B%22g%22%3A%22dd0dc06d-d3ef-8b2f-0d41-e61f3fc28fc4%22%2C%22e%22%3A1526530172136%2C%22c%22%3A1526528372070%2C%22l%22%3A1526528372136%7D",
+    "Host": "www.honestbee.tw",
+    "Pragma": "no-cache",
+    "Referer": "https://www.honestbee.tw/zh-TW/groceries/stores/american-wholesaler/departments/7313/categories/38037",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36",
+    "x-honestbee-cache": "enable"
+}''')
+    #print(url)
+    to_pg_data = []
+    resp = requests.get(url, headers=headers)
+    for product in resp.json().get('products'):
+        product['store_id'] = store_id
+        product['category_id'] = category_id
+        product['department_id'] = department_id
+        product['product_id'] = product['id']
+        product['dt'] = payload['dt']
+        product = {k.lower():v for k,v in product.items()}
+        to_pg_data.append(product)
+    to_postgres.delay(to_pg_data)
+    to_es.delay(to_pg_data)
+    if int(resp.json()['meta']['current_page']) == 1 and int(resp.json()['meta']['total_pages']) > 1:
+        print("%s,%s,%s"%(payload,int(resp.json()['meta']['current_page']),int(resp.json()['meta']['total_pages'])))
+        for pg in range(2, int(resp.json()['meta']['total_pages']) + 1):
+            payload['page'] = pg
+            get_products.delay(payload)
 
 @app.task
 def dispatch_get_products(payload):
-    process_department = payload['process_department']
-    process_category = payload['process_category']
-    for category_id,category in process_category.items():
-        payload['department_id'] = int(category['department_id'])
-        print(payload)
-        payload['store_id']     = int(process_department[str(payload['department_id'])]['store_id'])
-        payload['category_id'] = category_id
-        if 'process_category' in payload:
-            del payload['process_category']
-            del payload['process_department']
-        chain(get_products.s(payload) |
-                get_total_pages.s() |
-                dispatch_rest_of_get_products.s())()
+    """
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'process_department': {id: department{}}
+    'process_category': {id: category{}}
+    }
+    """
+    for category_id, category in payload['process_category'].items():
+        try:
+            department = payload['process_department'][str(category['department_id'])]
+        except:
+            print("error, %s"%payload)
+        payload2 = {}
+        payload2['dt'] = payload['dt']
+        payload2['department_id'] = department['id']
+        payload2['store_id']     = department['store_id']
+        payload2['category_id']  = category_id
+        get_products.delay(payload2)
 
 @app.task
-def to_es(data):
-    d = {
-        "title": data['title'],
-        "price": data['price'],
-        "store_id": data['store_id'],
-        "product_id": data['product_id'],
-        "imageurl": data['imageurl'],
-        "size": data['size'],
-        "url": data.get('url'),
-        "updated_at": data['dt'],
-        "status": data['status'],
-        "currency": data['currency']
-    }
-    resp = requests.put('http://{}:9200/honestbee/main/{}'.format(ES_HOST, data['product_id']), headers={'content-type': 'application/json'},
-            json=d)
+def to_es(data_list):
+    bulk_data = []
+    for data in data_list:
+        d = {
+            "title": data['title'],
+            "price": data['price'],
+            "store_id": data['store_id'],
+            "product_id": data['product_id'],
+            "imageurl": data['imageurl'],
+            "size": data['size'],
+            "url": data.get('url'),
+            "updated_at": data['dt'],
+            "status": data['status'],
+            "currency": data['currency']
+        }
+        bulk_data.append('''{ "index":{ "_id": "%s" } }'''%(data['id']))
+        bulk_data.append('''%s'''%json.dumps(d))
+
+    data = '\n'.join(bulk_data) + '\n'
+
+    resp = requests.put('http://{}:9200/honestbee/main/_bulk'.format(ES_HOST), headers={'content-type': 'application/x-ndjson'},
+            data=data)
     return resp.json()
+
+# @app.task
+# def to_es(data):
+#     d = {
+#         "title": data['title'],
+#         "price": data['price'],
+#         "store_id": data['store_id'],
+#         "product_id": data['product_id'],
+#         "imageurl": data['imageurl'],
+#         "size": data['size'],
+#         "url": data.get('url'),
+#         "updated_at": data['dt'],
+#         "status": data['status'],
+#         "currency": data['currency']
+#     }
+#     resp = requests.put('http://{}:9200/honestbee/main/{}'.format(ES_HOST, data['product_id']), headers={'content-type': 'application/json'},
+#             json=d)
+#     return resp.json()
 
 @app.task
 def to_postgres(data):
@@ -163,6 +171,19 @@ def store_department(department):
 
 @app.task
 def process_department(payload):
+    """
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'departments': [department{}],
+    }
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'departments': [department{}],
+    'process_department': {id: department{}}
+    }
+    """
     payload['process_department'] = {}
     for department in payload.get('departments'):
         department = {k.lower():v for k,v in department.items()}
@@ -178,6 +199,20 @@ def store_category(category):
 
 @app.task
 def process_category(payload):
+    """
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'departments': [department{}],
+    'process_department': {id: department{}}
+    }
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'process_department': {id: department{}}
+    'process_category': {id: category{}}
+    }
+    """
     payload['process_category'] = {}
     for department in payload.get('process_department').values():
         # print(department)
@@ -192,6 +227,17 @@ def process_category(payload):
 
 @app.task
 def get_directory(payload):
+    """
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>
+    }
+    payload={
+    'store_id': [store_id<str>],
+    'dt': <str>,
+    'departments': []
+    }
+    """
     store_id = int(payload['store_id'])
     dt       = payload['dt']
 
@@ -215,9 +261,13 @@ def get_directory(payload):
     return payload
 
 if __name__ == '__main__':
-    payload = {}
+    models.Departments.drop_table()
+    models.Departments.create_table()
+    models.Categories.drop_table()
+    models.Categories.create_table()
     dt = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(datetime.timezone(datetime.timedelta(hours=8))).isoformat()
     for store_id in get_stores():
+        payload = {}
         # chain(get_products.s((store_id,dt)) |
         #         get_total_pages.s() |
         #         dispatch_get_products.s())()
