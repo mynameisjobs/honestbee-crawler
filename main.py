@@ -15,12 +15,9 @@ app.conf.task_routes = {
         'main.to_postgres': {'queue': 'to_postgres'},
         'main.to_es':       {'queue': 'to_es'}
         }
-#brands_dict = {row.id: model_to_dict(row) for row in models.Brands}
 HOST = 'https://www.honestbee.tw'
 ES_HOST = os.getenv('ES_HOST')
 
-
-#@app.task
 def process_brands(brands):
     models.Brands.drop_table()
     models.Brands.create_table()
@@ -38,7 +35,6 @@ def get_stores():
     brands = [{k.lower():v for k,v in row.items()} for kk, row in brands.items()]
     stores = [brand for brand in brands]
     process_brands(brands)
-    #print("got brands")
     return stores
 
 @app.task
@@ -71,7 +67,6 @@ def get_products(payload):
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36",
     "x-honestbee-cache": "enable"
 }''')
-    #print(url)
     to_pg_data = []
     resp = requests.get(url, headers=headers)
     for product in resp.json().get('products'):
@@ -149,36 +144,13 @@ def to_es(data_list):
             data=data)
     return resp.json()
 
-# @app.task
-# def to_es(data):
-#     d = {
-#         "title": data['title'],
-#         "price": data['price'],
-#         "store_id": data['store_id'],
-#         "product_id": data['product_id'],
-#         "imageurl": data['imageurl'],
-#         "size": data['size'],
-#         "url": data.get('url'),
-#         "updated_at": data['dt'],
-#         "status": data['status'],
-#         "currency": data['currency']
-#     }
-#     resp = requests.put('http://{}:9200/honestbee/main/{}'.format(ES_HOST, data['product_id']), headers={'content-type': 'application/json'},
-#             json=d)
-#     return resp.json()
-
 @app.task
 def to_postgres(data):
-    #print(data)
     try:
         with models.database.atomic():
             models.Product.insert_many(data).execute()
     except peewee.IntegrityError:
         return "duplicate"
-
-    # except Exception as e:
-    #     print(e)
-    #     print(data)
 
 @app.task
 def store_department(department):
@@ -285,9 +257,6 @@ if __name__ == '__main__':
     for store in get_stores():
         payload = {}
         store_id = store['storeid']
-        # chain(get_products.s((store_id,dt)) |
-        #         get_total_pages.s() |
-        #         dispatch_get_products.s())()
         payload['store_id'] = int(store_id)
         payload['store'] = store
         payload['dt'] = dt
